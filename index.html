@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B383B">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>
+/* ============================================================
+   FedorianStudio — INTERACTIVE DEMO, locked-down build (demo
+   file only). This is a REDUCED engine: the only month it can
+   render is the viewer's current month, and it contains no
+   export/import code at all. This script runs before every
+   other script in the file and only seeds: each NEW browser
+   session (sessionStorage flag) first clears both student
+   keys, then pre-fills a warm, lived-in current month for a
+   student named Alex. Same-session refreshes keep the
+   visitor's edits. Everything is best-effort: any failure
+   leaves the demo opening fresh.
+   ============================================================ */
+(function(){
+  try {
+    var PREFS_KEY = 'fedorian_adhd_student_prefs_v1';
+    var DATA_KEY = 'fedorian_adhd_student_v1';
+    var SESSION_KEY = 'fedorian_student_demo_session_v1';
+    /* New browser session: reset both keys to the factory sample state.
+       sessionStorage is per-tab/per-session; if it is unavailable the
+       demo falls back to the original only-if-absent seeding below. */
+    var newSession = false;
+    try { newSession = !sessionStorage.getItem(SESSION_KEY); } catch (e) { newSession = false; }
+    if (newSession) {
+      try { localStorage.removeItem(PREFS_KEY); localStorage.removeItem(DATA_KEY); } catch (e) {}
+      try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (e) {}
+    }
+    if (!localStorage.getItem(PREFS_KEY)) {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({
+        name: 'Alex', theme: 'teal', appearance: 'light', weekStart: 'sun', home: 'today'
+      }));
+    }
+    if (!localStorage.getItem(DATA_KEY)) {
+      var pad = function(n){ return String(n).padStart(2, '0'); };
+      var now = new Date();
+      /* The demo's only month is the viewer's real current month. */
+      var y = now.getFullYear(), m = now.getMonth();
+      var monthEnd = new Date(y, m + 1, 0).getDate();
+      var iso = function(day){ return y + '-' + pad(m + 1) + '-' + pad(day); };
+      var today = now.getDate();
+      /* Clamp every sample date into the demo month, whatever day it is. */
+      var d = function(off){ var v = today + off; if (v < 1) v = 1; if (v > monthEnd) v = monthEnd; return iso(v); };
+      var uid = function(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); };
+      var data = {
+        classes: [
+          { id: 'dclass-bio', name: 'Biology', color: '#0B383B', days: [1, 3], time: '10:00', room: '', teacher: '' },
+          { id: 'dclass-his', name: 'History', color: '#C7A15C', days: [2, 4], time: '13:00', room: '', teacher: '' },
+          { id: 'dclass-mat', name: 'Maths', color: '#5E8A87', days: [1, 3, 5], time: '09:00', room: '', teacher: '' }
+        ],
+        assignments: [
+          { id: uid(), title: 'Biology lab report', classId: 'dclass-bio', due: d(0), status: 'todo', priority: 'high', note: '' },
+          { id: uid(), title: 'History essay draft', classId: 'dclass-his', due: d(3), status: 'doing', priority: 'normal', note: '' },
+          { id: uid(), title: 'Maths problem set 4', classId: 'dclass-mat', due: d(6), status: 'todo', priority: 'normal', note: '' },
+          { id: uid(), title: 'Biology reading notes', classId: 'dclass-bio', due: d(-2), status: 'done', priority: 'low', note: '' }
+        ],
+        blocks: [
+          { id: uid(), title: 'Biology revision', classId: 'dclass-bio', day: 1, time: '16:00' },
+          { id: uid(), title: 'Maths practice', classId: 'dclass-mat', day: 3, time: '16:00' }
+        ],
+        sessions: [
+          { id: uid(), date: d(-1), minutes: 45, classId: 'dclass-bio', note: 'Lab prep' },
+          { id: uid(), date: d(0), minutes: 30, classId: 'dclass-mat', note: '' }
+        ],
+        exams: [
+          { id: uid(), title: 'Biology midterm', classId: 'dclass-bio', date: d(9) }
+        ],
+        grades: [
+          { id: uid(), classId: 'dclass-bio', title: 'Quiz 3', score: 8, total: 10, weight: '' },
+          { id: uid(), classId: 'dclass-mat', title: 'Test 1', score: 17, total: 20, weight: '' }
+        ],
+        focusTask: { text: 'Finish the Biology lab report', done: false },
+        studyNotes: 'Welcome to the demo! This is the real ADHD Student Planner, running live in your browser. Tap around freely: tick off an assignment, log a study session, change the theme in Settings. Everything resets on your next visit — the full version saves your real planner on this device only.'
+      };
+      localStorage.setItem(DATA_KEY, JSON.stringify(data));
+    }
+  } catch (e) { /* seeding failed: the app simply opens fresh */ }
+})();
+</script>
+<title>FedorianStudio — ADHD Student Planner 2026–2027</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   FedorianStudio ADHD Student Planner 2026–2027 — single-file web app
+   Brand tokens (identical to Product #1):
+   Deep teal #0B383B · Ivory #F7F3EC · Ink #181F1C
+   Champagne Gold #C7A15C · Muted Teal #5E8A87 · Sage #7D9B8A
+   Card white #FFFFFF · Soft border #E3DCCB
+   Shell (Product #3 only, user direction 2026-10-24): top app bar + pill tab bar —
+   NOT the Product #1/#2 shell. Palette/type/icons unchanged.
+   ============================================================ */
+:root{
+  --teal:#0B383B;
+  --teal-dark:#07292B;
+  --ivory:#F7F3EC;
+  --ink:#181F1C;
+  --ink-soft:#4A5551;
+  --gold:#C7A15C;
+  --gold-soft:#EFE3CB;
+  --muted-teal:#5E8A87;
+  --sage:#7D9B8A;
+  --card:#FFFFFF;
+  --border:#E3DCCB;
+  --danger:#B4552D;
+  --radius:14px;
+  --shadow:0 1px 3px rgba(11,56,59,.06),0 8px 24px rgba(11,56,59,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Montserrat',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background:var(--ivory);
+  color:var(--ink);
+  font-size:15px;
+  line-height:1.5;
+}
+h1,h2,h3{font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-weight:700;color:var(--teal);line-height:1.2}
+button{font-family:inherit;cursor:pointer}
+input,textarea,select{font-family:inherit;font-size:15px;color:var(--ink)}
+::placeholder{color:#9AA39E}
+
+/* ---------- App layout ---------- */
+.app{min-height:100vh;min-height:100dvh}
+main{min-width:0;padding:28px 22px 60px}
+.wrap{max-width:1120px;margin:0 auto}
+.appfoot{max-width:1120px;margin:0 auto;padding:18px 4px calc(24px + env(safe-area-inset-bottom));text-align:center;font-size:12.5px;color:#9AA39E}
+
+/* ---------- Top app bar + pill tab bar (Product #3 shell — replaces the old #1/#2 shell) ---------- */
+.topbar{
+  position:sticky;top:0;z-index:100;background:var(--teal);color:var(--ivory);
+  padding-top:env(safe-area-inset-top);
+  box-shadow:0 4px 18px rgba(11,56,59,.25);
+}
+.topbar-inner{
+  max-width:1120px;margin:0 auto;padding:14px 22px 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+}
+.topbar .brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.topbar .wordmark{font-weight:800;letter-spacing:.34em;font-size:19px;color:#fff}
+.topbar .wordmark-sub{
+  font-family:'Segoe Script','Brush Script MT','Comic Sans MS',cursive;
+  color:var(--gold);font-size:24px;line-height:1;
+}
+.topbar .brand-tag{font-size:10px;letter-spacing:.22em;font-weight:600;color:rgba(247,243,236,.65)}
+.topbar-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.topbar .brand-owner{font-size:12.5px;font-weight:600;letter-spacing:.04em;color:var(--gold)}
+.topbar-gear{color:var(--ivory);border-color:rgba(247,243,236,.35)}
+.topbar-gear:hover{color:#fff;border-color:var(--gold);background:rgba(247,243,236,.08)}
+.tabbar{
+  display:flex;gap:8px;overflow-x:auto;padding:8px 22px 10px;
+  background:var(--ivory);border-bottom:1px solid var(--border);
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-padding:0 22px;
+}
+.tabbar::-webkit-scrollbar{display:none}
+.tab-btn{
+  display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
+  background:transparent;border:1.5px solid transparent;border-radius:8px;
+  color:var(--ink-soft);font-size:14px;font-weight:600;
+  padding:9px 14px;min-height:44px;
+  transition:background-color .18s ease,color .18s ease,border-color .18s ease;
+}
+.tab-btn:hover{background:#fff;border-color:var(--border);color:var(--teal)}
+.tab-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 12px rgba(11,56,59,.18)}
+.tab-btn .ic{width:20px;height:20px;color:var(--muted-teal);transition:color .18s ease}
+.tab-btn:hover .ic{color:var(--teal)}
+.tab-btn.active .ic{color:#fff}
+
+/* ---------- Views & cards ---------- */
+.view{display:none}
+.view.active{display:block}
+.view-head{margin-bottom:18px}
+.view-head h1{font-size:30px}
+.view-head .sub{color:var(--ink-soft);margin-top:4px;font-size:14px}
+.card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px;
+}
+.card h2{font-size:19px;margin-bottom:4px}
+.card h3{font-size:16px;margin-bottom:6px}
+.card .hint{font-size:13px;color:var(--ink-soft);margin-bottom:12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-2 .card{margin-bottom:0}
+.section-gap{margin-bottom:16px}
+
+/* ---------- Generic controls ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--teal);color:#fff;border:1px solid var(--teal);
+  font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px;min-height:44px;
+  transition:background-color .18s ease,border-color .18s ease,transform .15s ease,box-shadow .15s ease;
+}
+.btn:hover{background:var(--teal-dark);transform:translateY(-1px);box-shadow:0 0 0 2px rgba(199,161,92,.5),0 4px 12px rgba(11,56,59,.14)}
+.btn:active{transform:translateY(0);box-shadow:0 0 0 2px rgba(199,161,92,.65)}
+.btn:disabled:hover{transform:none;box-shadow:none}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:var(--teal-dark)}
+.btn.gold:hover{background:#B8934A;box-shadow:0 0 0 2px rgba(11,56,59,.28),0 4px 12px rgba(11,56,59,.14)}
+.btn.ghost{background:transparent;color:var(--teal);border-color:var(--border)}
+.btn.ghost:hover{border-color:var(--gold);background:#fff}
+.btn.small{padding:10px 14px;min-height:44px;font-size:13px}
+.btn.danger{background:transparent;border-color:#E4C4B2;color:var(--danger)}
+.btn.danger:hover{background:#FBEEE7}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,.tab-btn:focus-visible,.chip:focus-visible,.seg-btn:focus-visible,.swatch:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.icon-btn{
+  background:transparent;border:1px solid transparent;color:#9AA39E;border-radius:6px;
+  width:44px;height:44px;font-size:18px;line-height:1;flex:0 0 auto;
+}
+.icon-btn:hover{color:var(--danger);border-color:var(--border);background:#fff}
+.text-input,.text-area,.select-input{
+  width:100%;background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:11px 13px;outline:none;
+}
+.text-input:focus,.text-area:focus,.select-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(199,161,92,.18)}
+.text-area{resize:vertical;min-height:84px;line-height:1.55}
+label.file-label{display:inline-flex}
+input[type="date"].text-input{padding:9px 13px}
+input[type="file"]{display:none}
+
+/* Round check toggle */
+.check{
+  width:44px;height:44px;flex:0 0 44px;border-radius:50%;
+  border:2px solid var(--border);background:#fff;color:#fff;font-size:15px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;padding:0;
+  transition:background-color .18s ease,border-color .18s ease,transform .12s ease;
+}
+.check:active{transform:scale(.86)}
+.check:hover{border-color:var(--sage)}
+.check.on{background:var(--sage);border-color:var(--sage)}
+
+/* ---------- Focus row ---------- */
+.focus-row{display:flex;align-items:center;gap:12px;padding:7px 0}
+.focus-row input{
+  flex:1;border:none;border-bottom:1px solid var(--border);background:transparent;
+  padding:8px 2px;font-size:16px;outline:none;border-radius:0;
+}
+.focus-row input:focus{border-bottom-color:var(--gold)}
+.focus-row.done input{color:#9AA39E;text-decoration:line-through}
+
+/* ---------- Assignment / list rows ---------- */
+.todo-row{display:flex;align-items:center;gap:12px;padding:6px 0}
+.todo-text{flex:1;font-size:15px}
+.todo-row.done .todo-text{color:#9AA39E;text-decoration:line-through}
+.add-row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.add-row .text-input{flex:1;min-width:180px}
+.empty-note{color:#9AA39E;font-size:14px;padding:8px 0}
+
+/* ---------- Date / month navigation ---------- */
+.date-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.date-nav .spacer{flex:1}
+.date-label{font-family:'Playfair Display',Georgia,serif;font-size:21px;font-weight:700;color:var(--teal)}
+
+/* ---------- Stat cards ---------- */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.stat-card{background:#FDF9EF;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.stat-num{font-family:'Playfair Display',Georgia,serif;font-size:26px;font-weight:700;color:var(--teal);line-height:1.1}
+.stat-label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-top:4px}
+
+/* ---------- Class chips, dots, tags ---------- */
+.class-dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:0 0 auto;vertical-align:-1px}
+.tag{
+  display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  background:var(--gold-soft);color:var(--teal-dark);border-radius:999px;padding:3px 10px;white-space:nowrap;
+}
+.tag.soft{background:#F1EAD9;color:var(--ink-soft)}
+.meta{font-size:13px;color:var(--ink-soft)}
+.bar{height:10px;background:#F1EAD9;border-radius:999px;overflow:hidden;margin-top:8px}
+.bar>i{display:block;height:100%;background:var(--sage);border-radius:999px}
+.class-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F1EAD9}
+.class-row:last-child{border-bottom:none}
+.class-row .class-main{flex:1;min-width:0}
+.class-name-input{border:none;background:transparent;font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:700;color:var(--teal);outline:none;width:100%;padding:2px 0;border-bottom:1px solid transparent}
+.class-name-input:focus{border-bottom-color:var(--gold)}
+
+/* ---------- Day chips (meeting days, status filters) ---------- */
+.chip-row{display:flex;flex-wrap:wrap;gap:9px}
+.chip{
+  display:inline-flex;align-items:center;gap:8px;
+  border:1.5px solid var(--border);background:#fff;border-radius:8px;padding:10px 16px;
+  font-size:14px;font-weight:600;color:var(--ink-soft);min-height:44px;
+  transition:background-color .18s ease,border-color .18s ease,color .18s ease,transform .12s ease;
+}
+.chip:active{transform:scale(.95)}
+.chip:hover{border-color:var(--teal);color:var(--teal)}
+.chip.on{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 12px rgba(11,56,59,.18)}
+
+/* ---------- Settings ---------- */
+.settings-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.howto p{margin-bottom:9px;font-size:14.5px;color:var(--ink-soft)}
+.howto p strong{color:var(--teal)}
+.privacy-line{
+  display:flex;gap:10px;align-items:flex-start;background:var(--gold-soft);border:1px solid var(--border);
+  border-radius:12px;padding:14px 16px;font-size:14.5px;color:var(--teal-dark);margin-bottom:16px;
+}
+
+/* ---------- Add to Home Screen ---------- */
+.install-done{display:flex;gap:9px;align-items:center;font-size:14.5px;font-weight:600;color:var(--teal)}
+.sheet-backdrop{
+  position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(11,56,59,.48);z-index:320;
+  display:none;align-items:flex-end;justify-content:center;
+}
+.sheet-backdrop.open{display:flex}
+.sheet{
+  background:var(--ivory);color:var(--ink);border:1px solid var(--border);border-bottom:none;
+  border-radius:20px 20px 0 0;box-shadow:0 -14px 44px rgba(11,56,59,.28);
+  width:100%;max-width:520px;max-height:88vh;max-height:88dvh;overflow-y:auto;
+  padding:26px 24px calc(24px + env(safe-area-inset-bottom));
+  animation:sheetIn .24s ease;
+}
+@keyframes sheetIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@media (min-width:640px){
+  .sheet-backdrop{align-items:center;padding:20px}
+  .sheet{border-radius:20px;border-bottom:1px solid var(--border);padding-bottom:24px}
+}
+.sheet h2{font-size:21px;display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.sheet h2 .ic{width:21px;height:21px;color:var(--gold)}
+.sheet .sheet-sub{font-size:14px;color:var(--ink-soft);margin-bottom:16px}
+.sheet ol{margin:0 0 20px 21px;font-size:14.5px;line-height:1.65}
+.sheet ol li{margin-bottom:7px}
+.sheet ol li:last-child{margin-bottom:0}
+
+/* ---------- Icons & motion ---------- */
+.ic{width:19px;height:19px;flex:0 0 auto}
+.tab-btn .ic{width:20px;height:20px;color:var(--muted-teal);transition:color .18s ease}
+.tab-btn:hover .ic{color:var(--teal)}
+.tab-btn.active .ic{color:#fff}
+.btn .ic{width:17px;height:17px}
+.check .ic{width:16px;height:16px}
+.chip .ic{width:15px;height:15px;vertical-align:-2px;margin-right:1px}
+body,.card,.topbar,.tabbar{transition:background-color .25s ease,color .25s ease}
+@keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.view.active{animation:viewIn .22s ease}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.view.entering .card{animation:cardIn .3s ease both}
+.view.entering .card:nth-child(2){animation-delay:.04s}
+.view.entering .card:nth-child(3){animation-delay:.08s}
+.view.entering .card:nth-child(4){animation-delay:.12s}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.22)}100%{transform:scale(1)}}
+.pop{animation:pop .28s ease}
+@keyframes focusGlow{0%{box-shadow:var(--shadow)}35%{box-shadow:0 0 0 3px rgba(199,161,92,.55),0 0 28px rgba(199,161,92,.5)}100%{box-shadow:var(--shadow)}}
+.card.focus-card.glow{animation:focusGlow 1.05s ease}
+
+/* ---------- Personalisation: greeting & top-bar owner ---------- */
+.greeting{font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:600;color:var(--gold);margin-top:6px}
+.topbar .brand-owner{font-size:12.5px;font-weight:600;letter-spacing:.04em;color:var(--gold)}
+
+/* ---------- Personalisation: controls ---------- */
+.swatch-row{display:flex;flex-wrap:wrap;gap:9px}
+.swatch{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:7px 13px 7px 8px;font-size:13px;font-weight:600;color:var(--ink-soft);min-height:44px;transition:border-color .18s ease,color .18s ease,background-color .18s ease}
+.swatch .dot{width:24px;height:24px;border-radius:50%;border:2px solid rgba(24,31,28,.12);flex:0 0 auto}
+.swatch.on{border-color:var(--gold);color:var(--ink);box-shadow:0 0 0 2px rgba(199,161,92,.35)}
+.swatch.on .dot{box-shadow:0 0 0 3px rgba(199,161,92,.35)}
+.seg{display:inline-flex;gap:4px;flex-wrap:wrap;background:#F1EAD9;border:1px solid var(--border);border-radius:8px;padding:4px}
+.seg-btn{background:transparent;border:1.5px solid transparent;color:var(--ink-soft);border-radius:6px;padding:9px 18px;font-size:13.5px;font-weight:600;min-height:44px;transition:background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease}
+.seg-btn:hover{color:var(--teal)}
+.seg-btn.on{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 2px 8px rgba(11,56,59,.25)}
+
+/* ---------- Personalisation: accent themes (gold stays the constant secondary) ---------- */
+html[data-theme="midnight"]{--teal:#1B2A4A;--teal-dark:#111D34;--muted-teal:#5B729E;--sage:#7E93B5}
+html[data-theme="forest"]{--teal:#1E4033;--teal-dark:#132B21;--muted-teal:#5F8A72;--sage:#84AC90}
+html[data-theme="plum"]{--teal:#3D2440;--teal-dark:#2A1730;--muted-teal:#8A6489;--sage:#A583A8}
+html[data-theme="ember"]{--teal:#7A3220;--teal-dark:#59220F;--muted-teal:#B0714F;--sage:#C08B62}
+
+/* ---------- Personalisation: dark appearance ---------- */
+html[data-appearance="dark"]{
+  --ivory:#0F1719;--card:#1C282B;--ink:#ECE8DC;--ink-soft:#A7B3AF;
+  --border:#35443F;--gold-soft:#38301E;
+  --shadow:0 1px 3px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.3);
+}
+html[data-appearance="dark"] h1,html[data-appearance="dark"] h2,html[data-appearance="dark"] h3{color:#EFE9DA}
+html[data-appearance="dark"] .date-label,html[data-appearance="dark"] .stat-num,html[data-appearance="dark"] .class-name-input{color:#EFE9DA}
+html[data-appearance="dark"] .greeting{color:#DCC084}
+html[data-appearance="dark"] .howto p strong{color:var(--gold)}
+html[data-appearance="dark"] .privacy-line{color:var(--ink)}
+html[data-appearance="dark"] .text-input,html[data-appearance="dark"] .text-area,html[data-appearance="dark"] .select-input,
+html[data-appearance="dark"] .chip,html[data-appearance="dark"] .swatch,html[data-appearance="dark"] .seg-btn{background:var(--card);color:var(--ink)}
+html[data-appearance="dark"] .check{background:var(--card)}
+html[data-appearance="dark"] .check.on{background:var(--sage);border-color:var(--sage)}
+html[data-appearance="dark"] .chip.on{background:var(--teal);border-color:var(--teal);color:#fff}
+html[data-appearance="dark"] .seg-btn.on{background:var(--teal);border-color:var(--teal);color:#fff}
+html[data-appearance="dark"] .tabbar{background:var(--card);border-bottom-color:var(--border)}
+html[data-appearance="dark"] .tab-btn{color:var(--ink-soft)}
+html[data-appearance="dark"] .tab-btn:hover{background:var(--card);color:var(--ink);border-color:var(--border)}
+html[data-appearance="dark"] .seg{background:var(--border)}
+html[data-appearance="dark"] .seg-btn{background:transparent}
+html[data-appearance="dark"] .stat-card{background:var(--card)}
+html[data-appearance="dark"] .bar{background:var(--border)}
+html[data-appearance="dark"] .class-row{border-bottom-color:var(--border)}
+html[data-appearance="dark"] .btn.ghost{color:var(--ink)}
+html[data-appearance="dark"] .btn.ghost:hover{background:var(--card)}
+html[data-appearance="dark"] .icon-btn:hover{background:var(--card)}
+
+
+/* ---------- Product #3 dashboard & split layouts (new shell — not the #1/#2 single column) ---------- */
+/* Today dashboard: stats strip full width, then two columns of sections on desktop. */
+#view-today{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+#view-today>.view-head{grid-column:1/-1}
+#view-today>.stat-grid{grid-column:1/-1}
+#view-today>.card,#view-today>.grid-2{margin-bottom:0}
+#view-today>.focus-card{grid-column:1}
+#view-today>.grid-2{grid-column:2;grid-row:3/span 2;grid-template-columns:1fr}
+#view-today>div:nth-of-type(5){grid-column:1}
+#view-today>div:nth-of-type(6){grid-column:1}
+#view-today>div:nth-of-type(7){grid-column:2}
+/* Assignments / Classes: list in the wide column, add-form as a sticky side panel.
+   The add card is always the last card, so :last-child holds whether or not the
+   conditional "Pick It Back Up" card is present. */
+#view-assignments,#view-classes{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:16px;align-items:start}
+#view-assignments>.view-head,#view-classes>.view-head{grid-column:1/-1}
+#view-assignments>.card,#view-classes>.card{margin-bottom:0}
+#view-assignments>.card:last-child{grid-column:2;grid-row:2/span 2;position:sticky;top:132px}
+#view-classes>.card:last-child{grid-column:2;grid-row:2;position:sticky;top:132px}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .btn:hover{transform:none;box-shadow:none}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:900px){ .grid-2{grid-template-columns:1fr} .stat-grid{grid-template-columns:1fr 1fr} #view-today{display:block} #view-today>.card{margin-bottom:16px} #view-today>.grid-2{margin-bottom:16px} #view-assignments,#view-classes{display:block} #view-assignments>.card,#view-classes>.card{margin-bottom:16px;position:static} }
+@media (max-width:860px){
+  .topbar-inner{padding:12px 14px 10px}
+  .topbar .brand-tag{display:none}
+  .tabbar{padding:8px 14px 10px;scroll-padding:0 14px}
+  .tab-btn{padding:9px 13px;font-size:13px}
+  main{padding:18px 14px calc(28px + env(safe-area-inset-bottom))}
+  .view-head h1{font-size:25px}
+  .card{padding:16px}
+  input,textarea,select{font-size:16px}
+  .focus-row input,.class-name-input{font-size:16px}
+}
+/* On very narrow phones the owner name drops out so the top-bar actions stay on one row. */
+@media (max-width:560px){ .topbar .brand-owner{display:none} }
+</style>
+<style>
+/* ============================================================
+   Demo chrome (demo file only — not part of the product):
+   fixed banner + layout offset + top-bar DEMO pill.
+   The Product #3 shell uses a sticky top app bar, so the bar
+   itself is offset below the banner.
+   ============================================================ */
+:root{ --demo-bar-h: 42px }
+#demoBanner{
+  position:fixed; top:0; left:0; right:0; height:var(--demo-bar-h); z-index:300;
+  background:#0B383B; color:#F7F3EC; display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:0 52px 0 16px; font-family:'Montserrat',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size:12px; font-weight:700; letter-spacing:.16em; box-shadow:0 2px 14px rgba(11,56,59,.28);
+}
+#demoBanner .demo-label{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0 }
+#demoBanner a{ color:#C7A15C; text-decoration:none; font-weight:800; white-space:nowrap; letter-spacing:.1em }
+#demoBanner a:hover{ text-decoration:underline }
+#demoBanner .demo-x{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  background:transparent; border:none; color:rgba(247,243,236,.75);
+  font-size:20px; line-height:1; padding:8px 10px; cursor:pointer; font-family:inherit;
+}
+#demoBanner .demo-x:hover{ color:#fff }
+body{ padding-top:var(--demo-bar-h) }
+.topbar{ top:var(--demo-bar-h) }
+html.demo-off #demoBanner{ display:none }
+html.demo-off body{ padding-top:0 }
+html.demo-off .topbar{ top:0 }
+.demo-pill{
+  display:inline-block; font-family:'Montserrat',sans-serif; font-size:9.5px; font-weight:800;
+  letter-spacing:.18em; background:#C7A15C; color:#0B383B; border-radius:999px;
+  padding:3px 8px 2px; vertical-align:middle; margin-left:6px;
+}
+@media (max-width:560px){
+  #demoBanner{ font-size:10.5px; letter-spacing:.08em; gap:8px }
+}
+</style>
+<script>
+/* Apply the saved theme/appearance before first paint (preferences are managed by the main script below). */
+(function(){ try { var p = JSON.parse(localStorage.getItem('fedorian_adhd_student_prefs_v1') || '{}'); var de = document.documentElement; if (p.theme) de.dataset.theme = p.theme; if (p.appearance) de.dataset.appearance = p.appearance; } catch (e) {} })();
+</script>
+<script>
+/* Capture Chrome's install prompt the moment it fires (hosted copies only — a local file never triggers it) so Settings can offer the real one-tap prompt instead of the guided steps. preventDefault keeps Chrome's mini-infobar out of the way of our own button. */
+window.__fedorianInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); window.__fedorianInstallPrompt = e; });
+window.addEventListener('appinstalled', function(){ window.__fedorianInstallPrompt = null; });
+</script>
+</head>
+<body>
+<div id="demoBanner" role="note">
+  <span class="demo-label">INTERACTIVE DEMO — try the demo month free · Full version: Jan 2026 – Dec 2027</span>
+  <a href="https://www.etsy.com/shop/FedorianStudio" target="_blank" rel="noopener">Get the full student planner on Etsy →</a>
+  <button class="demo-x" id="demoBannerX" type="button" aria-label="Dismiss demo banner">×</button>
+</div>
+<script>
+(function(){ var b = document.getElementById('demoBannerX'); if (b) b.addEventListener('click', function(){ document.documentElement.classList.add('demo-off'); }); })();
+</script>
+<div class="app">
+
+  <!-- ============ Top app bar + pill tab bar (Product #3 shell) ============ -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="wordmark">FEDORIAN</span>
+        <span class="wordmark-sub">studio <span class="demo-pill">DEMO</span></span>
+        <span class="brand-tag">ADHD STUDENT PLANNER · 2026–2027</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="brand-owner" id="brandOwner" style="display:none"></span>
+        <button class="btn" data-action="nav" data-view="assignments">+ New assignment</button>
+        <button class="icon-btn topbar-gear" data-action="nav" data-view="settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path stroke-width="2.3" d="M12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg></button>
+      </div>
+    </div>
+    <nav id="mainNav" class="tabbar" aria-label="Student planner sections">
+      <button class="tab-btn" data-action="nav" data-view="today"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4 19 19M19 5l-1.6 1.6M6.6 17.4 5 19"/></svg>Today</button>
+      <button class="tab-btn" data-action="nav" data-view="assignments"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 8.5h6M9 12.5h6M9 16.5h4"/><path d="M6.5 8.5 8 10l2.5-2.5"/></svg>Assignments</button>
+      <button class="tab-btn" data-action="nav" data-view="classes"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20"/><path d="M8 7.5h6M8 11h6"/></svg>Classes</button>
+      <button class="tab-btn" data-action="nav" data-view="study"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4C10 6 5 7 3.5 7.5v11C5 18 10 19 12 21c2-2 7-3 8.5-3.5v-11C19 7 14 6 12 4z"/><path d="M12 4v17"/></svg>Study</button>
+      <button class="tab-btn" data-action="nav" data-view="exams"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="13.5" r="8"/><path d="M12 9.5v4l3 2M9.5 2.5 10.8 4M14.5 2.5 13.2 4"/></svg>Exams</button>
+      <button class="tab-btn" data-action="nav" data-view="grades"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20V10M10 20V4M16 20v-9M22 20H2"/></svg>Grades</button>
+      <button class="tab-btn" data-action="nav" data-view="semester"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Semester</button>
+      <button class="tab-btn" data-action="nav" data-view="settings"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path stroke-width="2.3" d="M12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg>Settings</button>
+    </nav>
+  </header>
+
+  <!-- ============ Views ============ -->
+  <main>
+    <div class="wrap">
+      <section class="view" id="view-today"></section>
+      <section class="view" id="view-assignments"></section>
+      <section class="view" id="view-classes"></section>
+      <section class="view" id="view-study"></section>
+      <section class="view" id="view-exams"></section>
+      <section class="view" id="view-grades"></section>
+      <section class="view" id="view-semester"></section>
+
+      <!-- Settings is static markup; its buttons are wired by the global handlers -->
+      <section class="view" id="view-settings">
+        <div class="view-head">
+          <h1>Settings &amp; Your Data</h1>
+          <p class="sub">Make it yours, or start fresh — you are in control.</p>
+        </div>
+        <div class="privacy-line"><span aria-hidden="true">◆</span><span><strong>Your data never leaves this device</strong> — everything is saved in this browser. No account, no server, no tracking.</span></div>
+        <div class="card">
+          <h2>Make it yours</h2>
+          <p class="hint">Personal touches, saved on this device only. They apply instantly and never touch your study data.</p>
+          <h3>Your name</h3>
+          <input type="text" class="text-input" id="prefName" data-pref="name" placeholder="e.g. Alex — shown at the top and on Today" autocomplete="off">
+          <h3 style="margin-top:18px">Accent theme</h3>
+          <div class="swatch-row">
+            <button class="swatch" data-action="pref-theme" data-theme="teal"><span class="dot" style="background:#0B383B"></span>Deep Teal</button>
+            <button class="swatch" data-action="pref-theme" data-theme="midnight"><span class="dot" style="background:#1B2A4A"></span>Midnight</button>
+            <button class="swatch" data-action="pref-theme" data-theme="forest"><span class="dot" style="background:#1E4033"></span>Forest</button>
+            <button class="swatch" data-action="pref-theme" data-theme="plum"><span class="dot" style="background:#3D2440"></span>Plum</button>
+            <button class="swatch" data-action="pref-theme" data-theme="ember"><span class="dot" style="background:#7A3220"></span>Ember</button>
+          </div>
+          <h3 style="margin-top:18px">Appearance</h3>
+          <div class="seg">
+            <button class="seg-btn" data-action="pref-appearance" data-val="light">Light</button>
+            <button class="seg-btn" data-action="pref-appearance" data-val="dark">Dark</button>
+          </div>
+          <h3 style="margin-top:18px">Week starts on</h3>
+          <div class="seg">
+            <button class="seg-btn" data-action="pref-weekstart" data-val="sun">Sunday</button>
+            <button class="seg-btn" data-action="pref-weekstart" data-val="mon">Monday</button>
+          </div>
+          <h3 style="margin-top:18px">Open on</h3>
+          <select class="select-input" id="prefHome">
+            <option value="today">Today</option>
+            <option value="assignments">Assignments</option>
+            <option value="classes">Classes</option>
+            <option value="study">Study</option>
+            <option value="exams">Exams</option>
+            <option value="grades">Grades</option>
+            <option value="semester">Semester</option>
+            <option value="settings">Settings</option>
+          </select>
+          <p class="hint" style="margin-top:8px">The tab the planner opens on. Takes effect next time you open it.</p>
+        </div>
+        <div class="card">
+          <h2>Take it with you</h2>
+          <p class="hint">Put the planner on your home screen — it opens like an app, full-screen, with your data saved on this device.</p>
+          <div class="settings-actions" id="installCta">
+            <button class="btn gold" data-action="install-app"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="7" y="2.8" width="10" height="18.4" rx="2.2"/><path d="M12 7v5.4M9.7 10.2 12 12.5l2.3-2.3M10.6 18h2.8"/></svg>Add to Home Screen</button>
+          </div>
+          <p class="install-done" id="installDone" style="display:none">✓ You're using the home-screen version</p>
+        </div>
+        <div class="card howto">
+          <h2>How to use this planner</h2>
+          <p><strong>Start on Today.</strong> The planner opens on today — one focus task, today's classes, and what's due. That's the whole plan.</p>
+          <p><strong>Done beats perfect.</strong> Mark things done when they are done-ish. A half-finished assignment you handed in counts.</p>
+          <p><strong>Overdue is not a failure.</strong> Late work just sits there patiently until you pick it back up. Nothing turns red, nothing scolds you.</p>
+          <p><strong>Study in small blocks.</strong> Log whatever time you actually studied — ten honest minutes beat a perfect hour you never started.</p>
+          <p><strong>Everything saves itself.</strong> Type, tap, close the tab. It's all here when you come back.</p>
+        </div>
+        <div class="card">
+          <h2>Start over</h2>
+          <p class="hint">Clear every class, assignment, study session, exam and grade from this browser and return to a fresh planner. This cannot be undone.</p>
+          <button class="btn danger" data-action="clear-all">Clear all my data</button>
+        </div>
+        <p style="text-align:center;color:#9AA39E;font-size:12.5px;margin-top:8px">FedorianStudio · ADHD Student Planner 2026–2027 · A Hastle product</p>
+      </section>
+    </div>
+    <div class="appfoot">Planners for every brain and every plan. Your data is saved only in this browser, on this device.</div>
+  </main>
+</div>
+
+<!-- Add to Home Screen guided sheet (opened from Settings; the steps are filled in for the visitor's platform by the main script) -->
+<div class="sheet-backdrop" id="installSheet">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="installSheetTitle">
+    <h2 id="installSheetTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="7" y="2.8" width="10" height="18.4" rx="2.2"/><path d="M12 7v5.4M9.7 10.2 12 12.5l2.3-2.3M10.6 18h2.8"/></svg>Add to Home Screen</h2>
+    <p class="sheet-sub">A few quick steps — then the planner is one tap away, full-screen, with everything saved on this device.</p>
+    <ol id="installSteps"></ol>
+    <div class="settings-actions">
+      <button class="btn gold" data-action="install-close">Got it</button>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ================================================================
+   FedorianStudio ADHD Student Planner 2026–2027
+   Single localStorage key, autosave on every change.
+   ================================================================ */
+
+/* ---------------- Date helpers ---------------- */
+const pad2 = n => String(n).padStart(2, '0');
+function isoOf(d){ return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function parseISO(s){ const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function addDays(d, n){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+function todayISO(){ return isoOf(new Date()); }
+/* LOCKED DEMO: the only month that exists in this build is the viewer's
+   current month. DEMO_MONTH is that month's key, and RANGE_MIN / RANGE_MAX
+   are its first / last day — there is no wider range anywhere in this file
+   to widen them back to. Every write path already funnels through
+   clampISO, so no date outside this month can ever be stored. */
+const DEMO_NOW = new Date();
+const DEMO_MONTH = DEMO_NOW.getFullYear() + '-' + pad2(DEMO_NOW.getMonth() + 1);
+const RANGE_MIN = DEMO_MONTH + '-01';
+const RANGE_MAX = DEMO_MONTH + '-' + pad2(new Date(DEMO_NOW.getFullYear(), DEMO_NOW.getMonth() + 1, 0).getDate());
+function clampISO(s){ return s < RANGE_MIN ? RANGE_MIN : (s > RANGE_MAX ? RANGE_MAX : s); }
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DOW_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function fmtLong(iso){
+  return parseISO(iso).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+function fmtShort(iso){
+  return parseISO(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+function daysBetween(a, b){ return Math.round((parseISO(b) - parseISO(a)) / 86400000); }
+function monthKeyOfISO(iso){ const d = parseISO(iso); return d.getFullYear() + '-' + pad2(d.getMonth() + 1); }
+
+/* ---------------- Small utilities ---------------- */
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+  ));
+}
+
+/* ---------------- Icons (inline SVG, stroke style, currentColor) ---------------- */
+const ICON_PATHS = {
+  check: '<path d="M4.5 12.8 9.7 18 19.5 6.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>'
+};
+function ic(name){
+  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + (ICON_PATHS[name] || '') + '</svg>';
+}
+
+/* ---------------- State ---------------- */
+const STORE_KEY = 'fedorian_adhd_student_v1';
+const CLASS_COLORS = ['#0B383B', '#C7A15C', '#5E8A87', '#7D9B8A', '#A8844E', '#22303A'];
+const STATUS_LABEL = { todo: 'Not started', doing: 'In progress', done: 'Done' };
+const STATUS_NEXT = { todo: 'doing', doing: 'done', done: 'todo' };
+const PRIORITY_LABEL = { low: 'Low', normal: 'Normal', high: 'High' };
+
+function seedState(){
+  return {
+    classes: [
+      { id: uid(), name: 'Biology', color: '#0B383B', days: [1, 3], time: '10:00', room: '', teacher: '' },
+      { id: uid(), name: 'History', color: '#C7A15C', days: [2, 4], time: '13:00', room: '', teacher: '' },
+      { id: uid(), name: 'Maths', color: '#5E8A87', days: [1, 3, 5], time: '09:00', room: '', teacher: '' }
+    ],
+    assignments: [],   // {id, title, classId, due, status, priority, note}
+    blocks: [],        // {id, title, classId, day, time} — planned study blocks, day = 0–6 weekday
+    sessions: [],      // {id, date, minutes, classId, note}
+    exams: [],         // {id, title, classId, date}
+    grades: [],        // {id, classId, title, score, total, weight} — weight optional ('' = unweighted)
+    focusTask: { text: '', done: false },
+    studyNotes: ''
+  };
+}
+function loadState(){
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const s = Object.assign(seedState(), parsed);
+      if (!Array.isArray(s.classes)) s.classes = [];
+      if (!Array.isArray(s.assignments)) s.assignments = [];
+      if (!Array.isArray(s.blocks)) s.blocks = [];
+      if (!Array.isArray(s.sessions)) s.sessions = [];
+      if (!Array.isArray(s.exams)) s.exams = [];
+      if (!Array.isArray(s.grades)) s.grades = [];
+      if (!s.focusTask || typeof s.focusTask !== 'object') s.focusTask = { text: '', done: false };
+      if (typeof s.studyNotes !== 'string') s.studyNotes = '';
+      return s;
+    }
+  } catch (e) { /* corrupted storage falls through to a fresh seed */ }
+  return seedState();
+}
+let state = loadState();
+
+/* LOCKED DEMO: prune anything a previous (full) build may have saved
+   for other months, so no other month can ever resurface here — and
+   write the pruned state straight back, so the stored copy itself is
+   clean (not just the in-memory state). Grades stay: they are
+   per-class aggregates, not dated. Study blocks stay: they recur by
+   weekday, not by date. */
+try {
+  const inDemo = d => typeof d === 'string' && d >= RANGE_MIN && d <= RANGE_MAX;
+  state.assignments = (state.assignments || []).filter(a => !a.due || inDemo(a.due));
+  state.exams = (state.exams || []).filter(x => !x.date || inDemo(x.date));
+  state.sessions = (state.sessions || []).filter(s => !s.date || inDemo(s.date));
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+} catch (e) { /* pruning is best-effort */ }
+let saveTimer = null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage full/blocked: keep app usable */ }
+  }, 150);
+}
+
+/* ---------------- Accessors ---------------- */
+function classById(id){ return state.classes.find(c => c.id === id) || null; }
+function classChip(c){
+  if (!c) return '<span class="tag soft">No class</span>';
+  return '<span class="tag soft"><span class="class-dot" style="background:' + esc(c.color) + '"></span> ' + esc(c.name) + '</span>';
+}
+function classOptions(selectedId){
+  return state.classes.map(c =>
+    '<option value="' + c.id + '"' + (c.id === selectedId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+}
+function dueLabel(due, status){
+  const diff = daysBetween(todayISO(), due);
+  if (status === 'done') return 'Done — nice work';
+  if (diff < 0) return 'Due ' + fmtShort(due) + ' — pick it back up, no stress';
+  if (diff === 0) return 'Due today';
+  if (diff === 1) return 'Due tomorrow';
+  return 'Due in ' + diff + ' days · ' + fmtShort(due);
+}
+function sortedAssignments(list){
+  return list.slice().sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+}
+function gradePct(g){
+  const total = Number(g.total);
+  if (!total || total <= 0) return null;
+  return (Number(g.score) / total) * 100;
+}
+function classAverage(classId){
+  const list = state.grades.filter(g => g.classId === classId).map(g => ({ pct: gradePct(g), w: (g.weight === '' || g.weight == null) ? null : Number(g.weight) })).filter(x => x.pct != null);
+  if (!list.length) return null;
+  const weighted = list.filter(x => x.w != null && x.w > 0);
+  if (weighted.length) {
+    const wSum = weighted.reduce((s, x) => s + x.w, 0);
+    if (wSum > 0) return weighted.reduce((s, x) => s + x.pct * x.w, 0) / wSum;
+  }
+  return list.reduce((s, x) => s + x.pct, 0) / list.length;
+}
+
+/* ---------------- UI state (not persisted) ---------------- */
+const realToday = todayISO();
+let currentView = 'today';
+let asgFilter = 'all';          // all | todo | doing | done
+const semCursor = DEMO_MONTH;
+
+/* ---------------- Shared fragments ---------------- */
+function assignmentRow(a){
+  const c = classById(a.classId);
+  const isDone = a.status === 'done';
+  return `
+    <div class="todo-row ${isDone ? 'done' : ''}">
+      <button class="check ${isDone ? 'on' : ''}" data-action="asg-status" data-aid="${a.id}" aria-label="Cycle assignment status">${isDone ? ic('check') : ''}</button>
+      <div class="todo-text">
+        <input type="text" class="class-name-input" style="font-family:inherit;font-size:15px;font-weight:600" value="${esc(a.title)}" data-bind="asg-title" data-aid="${a.id}" autocomplete="off" aria-label="Assignment title">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px">
+          ${classChip(c)}
+          <span class="meta">${dueLabel(a.due, a.status)}</span>
+          <input type="date" class="text-input" style="width:auto;padding:6px 8px;font-size:13px" value="${a.due}" min="${RANGE_MIN}" max="${RANGE_MAX}" data-asgdue="${a.id}" aria-label="Change due date">
+          <span class="tag ${a.priority === 'high' ? '' : 'soft'}">${PRIORITY_LABEL[a.priority] || 'Normal'}</span>
+          <span class="tag soft">${STATUS_LABEL[a.status] || 'Not started'}</span>
+        </div>
+        ${a.note ? `<div class="meta" style="margin-top:2px">${esc(a.note)}</div>` : ''}
+      </div>
+      <button class="icon-btn" data-action="asg-del" data-aid="${a.id}" aria-label="Delete assignment">×</button>
+    </div>`;
+}
+function assignmentAddForm(formId){
+  return `
+    <div class="add-row">
+      <input type="text" class="text-input" id="${formId}-title" placeholder="Assignment title…" autocomplete="off">
+      <select class="select-input" id="${formId}-class" style="flex:1;min-width:140px">${classOptions(state.classes[0] ? state.classes[0].id : '')}</select>
+      <input type="date" class="text-input" id="${formId}-due" style="flex:0 0 auto;width:auto" min="${RANGE_MIN}" max="${RANGE_MAX}" value="${realToday}">
+      <select class="select-input" id="${formId}-priority" style="flex:0 0 auto;width:auto">
+        <option value="normal" selected>Normal</option>
+        <option value="high">High</option>
+        <option value="low">Low</option>
+      </select>
+      <button class="btn gold" data-action="asg-add" data-form="${formId}">Add assignment</button>
+    </div>`;
+}
+
+/* ---------------- View: Today ---------------- */
+function renderToday(){
+  const iso = realToday;
+  const el = document.getElementById('view-today');
+  const nm = (typeof prefs !== 'undefined' && prefs.name) ? prefs.name.trim() : '';
+  const greet = nm ? `<p class="greeting">Good ${dayPart()}, ${esc(nm)}.</p>` : '';
+  const dow = parseISO(iso).getDay();
+  const todaysClasses = state.classes.filter(c => (c.days || []).includes(dow));
+  const dueToday = sortedAssignments(state.assignments.filter(a => a.due === iso && a.status !== 'done'));
+  const dueSoon = sortedAssignments(state.assignments.filter(a => a.status !== 'done' && a.due > iso && daysBetween(iso, a.due) <= 7));
+  const upcomingExams = state.exams.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).filter(e => e.date >= iso).slice(0, 3);
+  const doneCount = state.assignments.filter(a => a.status === 'done').length;
+  const openCount = state.assignments.filter(a => a.status !== 'done').length;
+  const ft = state.focusTask;
+  el.innerHTML = `
+    <div class="view-head">
+      <h1>${fmtLong(iso)}</h1>
+      ${greet}
+      <p class="sub">Today first. One focus task, today's classes, and what's due — the rest can wait.</p>
+    </div>
+
+    <div class="stat-grid section-gap">
+      <div class="stat-card"><div class="stat-num">${openCount}</div><div class="stat-label">Open assignments</div></div>
+      <div class="stat-card"><div class="stat-num">${doneCount}</div><div class="stat-label">Done — every one counts</div></div>
+      <div class="stat-card"><div class="stat-num">${todaysClasses.length}</div><div class="stat-label">Classes today</div></div>
+    </div>
+
+    <div class="card focus-card">
+      <h2>One Focus Task</h2>
+      <p class="hint">Just one. If it gets done, today was a win.</p>
+      <div class="focus-row ${ft.done ? 'done' : ''}">
+        <button class="check ${ft.done ? 'on' : ''}" data-action="focus-toggle" aria-label="Toggle focus task">${ft.done ? ic('check') : ''}</button>
+        <input type="text" placeholder="The one thing that matters today…" value="${esc(ft.text)}" data-bind="focus-task" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="grid-2 section-gap">
+      <div class="card">
+        <h2>Today's Classes</h2>
+        ${todaysClasses.length ? todaysClasses.map(c => `
+          <div style="display:flex;gap:10px;align-items:center;padding:7px 0">
+            <span class="class-dot" style="background:${esc(c.color)}"></span>
+            <div><strong>${esc(c.name)}</strong>${c.time ? `<div class="meta">${esc(c.time)}${c.room ? ' · ' + esc(c.room) : ''}</div>` : ''}</div>
+          </div>`).join('')
+        : '<p class="empty-note">No classes today. A free day — use it however you like.</p>'}
+      </div>
+      <div class="card">
+        <h2>Upcoming Exams</h2>
+        ${upcomingExams.length ? upcomingExams.map(e => {
+          const diff = daysBetween(iso, e.date);
+          const when = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : 'In ' + diff + ' days';
+          return `<div style="padding:7px 0"><strong>${esc(e.title)}</strong> <span class="tag">${when}</span><div class="meta">${fmtShort(e.date)}${classById(e.classId) ? ' · ' + esc(classById(e.classId).name) : ''}</div></div>`;
+        }).join('')
+        : '<p class="empty-note">No exams on the horizon. Enjoy the calm.</p>'}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Due Today</h2>
+      ${dueToday.length ? dueToday.map(assignmentRow).join('') : '<p class="empty-note">Nothing due today. Breathe.</p>'}
+    </div>
+
+    <div class="card">
+      <h2>Due in the Next 7 Days</h2>
+      ${dueSoon.length ? dueSoon.map(assignmentRow).join('') : '<p class="empty-note">Nothing due this week. You are ahead of the game.</p>'}
+    </div>
+
+    <div class="card">
+      <h2>Quick-Add Assignment</h2>
+      <p class="hint">Caught something new? Put it straight in — sort the details later.</p>
+      ${assignmentAddForm('today')}
+    </div>`;
+}
+
+/* ---------------- View: Assignments ---------------- */
+function renderAssignments(){
+  const el = document.getElementById('view-assignments');
+  const list = sortedAssignments(state.assignments.filter(a => asgFilter === 'all' || a.status === asgFilter));
+  const overdue = sortedAssignments(state.assignments.filter(a => a.status !== 'done' && a.due < realToday));
+  const filters = [['all', 'All'], ['todo', 'Not started'], ['doing', 'In progress'], ['done', 'Done']];
+  el.innerHTML = `
+    <div class="view-head">
+      <h1>Assignments</h1>
+      <p class="sub">Everything due, in due-date order. Tap the circle to move an assignment along — not started, in progress, done.</p>
+    </div>
+    <div class="card">
+      <div class="chip-row" style="margin-bottom:14px">
+        ${filters.map(f => `<button class="chip ${asgFilter === f[0] ? 'on' : ''}" data-action="asg-filter" data-filter="${f[0]}">${f[1]}</button>`).join('')}
+      </div>
+      ${list.length ? list.map(assignmentRow).join('') : '<p class="empty-note">Nothing here yet. Add your first assignment below — small steps count.</p>'}
+    </div>
+    ${overdue.length ? `
+    <div class="card">
+      <h2>Pick It Back Up</h2>
+      <p class="hint">These slipped past their date. That happens to everyone — they are still here, patiently, whenever you are ready.</p>
+      ${overdue.map(assignmentRow).join('')}
+    </div>` : ''}
+    <div class="card">
+      <h2>Add an Assignment</h2>
+      ${assignmentAddForm('asg')}
+      <div style="margin-top:12px">
+        <input type="text" class="text-input" id="asg-note" placeholder="Optional note — what does 'done' look like for this one?" autocomplete="off">
+      </div>
+    </div>`;
+}
+
+/* ---------------- View: Classes ---------------- */
+function renderClasses(){
+  const el = document.getElementById('view-classes');
+  const rows = state.classes.length ? state.classes.map(c => `
+    <div class="class-row">
+      <span class="class-dot" style="background:${esc(c.color)};margin-top:8px"></span>
+      <div class="class-main">
+        <input type="text" class="class-name-input" value="${esc(c.name)}" data-bind="class-name" data-cid="${c.id}" autocomplete="off" aria-label="Class name">
+        <div class="chip-row" style="margin:10px 0">
+          ${DOW_SHORT.map((d, i) => `<button class="chip ${(c.days || []).includes(i) ? 'on' : ''}" data-action="class-day" data-cid="${c.id}" data-day="${i}" style="padding:10px 12px;min-height:44px">${d}</button>`).join('')}
+        </div>
+        <div class="swatch-row" style="margin-bottom:10px">
+          ${CLASS_COLORS.map(col => `<button class="swatch" data-action="class-color" data-cid="${c.id}" data-color="${col}" style="padding:10px 12px 10px 8px;min-height:44px"><span class="dot" style="background:${col};width:20px;height:20px"></span>${c.color === col ? '✓' : ''}</button>`).join('')}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input type="text" class="text-input" style="flex:1;min-width:120px" placeholder="Time, e.g. 10:00" value="${esc(c.time || '')}" data-bind="class-time" data-cid="${c.id}" autocomplete="off" aria-label="Class time">
+          <input type="text" class="text-input" style="flex:1;min-width:120px" placeholder="Room (optional)" value="${esc(c.room || '')}" data-bind="class-room" data-cid="${c.id}" autocomplete="off" aria-label="Class room">
+          <input type="text" class="text-input" style="flex:1;min-width:120px" placeholder="Teacher (optional)" value="${esc(c.teacher || '')}" data-bind="class-teacher" data-cid="${c.id}" autocomplete="off" aria-label="Class teacher">
+        </div>
+      </div>
+      <button class="icon-btn" data-action="class-del" data-cid="${c.id}" aria-label="Delete class">×</button>
+    </div>`).join('')
+    : '<p class="empty-note">No classes yet. Add your first one below.</p>';
+  el.innerHTML = `
+    <div class="view-head">
+      <h1>Classes</h1>
+      <p class="sub">Your timetable, in your colours. Tap the days a class meets — Today picks them up automatically.</p>
+    </div>
+    <div class="card">
+      ${rows}
+    </div>
+    <div class="card">
+      <h2>Add a Class</h2>
+      <div class="add-row">
+        <input type="text" class="text-input" id="classNameInput" placeholder="Class name, e.g. Biology" autocomplete="off">
+        <input type="text" class="text-input" id="classTimeInput" placeholder="Time, e.g. 10:00" autocomplete="off" style="flex:0 0 auto;width:150px">
+        <button class="btn gold" data-action="class-add">Add class</button>
+      </div>
+    </div>`;
+}
+
+/* ---------------- View: Study ---------------- */
+function renderStudy(){
+  const el = document.getElementById('view-study');
+  const weekStart = weekStartOf(realToday);
+  const weekEnd = isoOf(addDays(parseISO(weekStart), 6));
+  const weekMinutes = state.sessions.filter(s => s.date >= weekStart && s.date <= weekEnd).reduce((t, s) => t + (Number(s.minutes) || 0), 0);
+  const totalMinutes = state.sessions.reduce((t, s) => t + (Number(s.minutes) || 0), 0);
+  const perClass = {};
+  state.sessions.forEach(s => { const k = s.classId || 'none'; perClass[k] = (perClass[k] || 0) + (Number(s.minutes) || 0); });
+  const perClassRows = Object.keys(perClass).map(k => {
+    const c = classById(k);
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0"><span>${c ? esc(c.name) : 'General study'}</span><strong>${perClass[k]} min</strong></div>`;
+  }).join('');
+  const blocks = state.blocks.slice().sort((a, b) => a.day - b.day);
+  const sessions = state.sessions.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 30);
+  el.innerHTML = `
+    <div class="view-head">
+      <h1>Study</h1>
+      <p class="sub">Plan small blocks, log honest minutes. No streaks, no broken chains — every minute you logged still counts.</p>
+    </div>
+
+    <div class="stat-grid section-gap">
+      <div class="stat-card"><div class="stat-num">${weekMinutes}</div><div class="stat-label">Minutes this week</div></div>
+      <div class="stat-card"><div class="stat-num">${totalMinutes}</div><div class="stat-label">Minutes total</div></div>
+      <div class="stat-card"><div class="stat-num">${state.sessions.length}</div><div class="stat-label">Sessions logged</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Planned Study Blocks</h2>
+      <p class="hint">A weekly rhythm, not a contract. Move or skip a block whenever life happens.</p>
+      ${blocks.length ? blocks.map(b => `
+        <div class="todo-row">
+          <div class="todo-text"><strong>${esc(b.title)}</strong>
+            <div class="meta">${DOW_FULL[b.day]}${b.time ? ' · ' + esc(b.time) : ''}</div>
+            <div style="margin-top:4px">${classChip(classById(b.classId))}</div>
+          </div>
+          <button class="icon-btn" data-action="block-del" data-bid="${b.id}" aria-label="Delete study block">×</button>
+        </div>`).join('')
+      : '<p class="empty-note">No planned blocks yet. Add one below — even a 20-minute block is a plan.</p>'}
+      <div class="add-row">
+        <input type="text" class="text-input" id="blockTitleInput" placeholder="Block title, e.g. Biology revision" autocomplete="off">
+        <select class="select-input" id="blockClassInput" style="flex:1;min-width:140px">${classOptions(state.classes[0] ? state.classes[0].id : '')}</select>
+        <select class="select-input" id="blockDayInput" style="flex:0 0 auto;width:auto">${DOW_FULL.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select>
+        <input type="text" class="text-input" id="blockTimeInput" placeholder="Time" autocomplete="off" style="flex:0 0 auto;width:110px">
+        <button class="btn gold" data-action="block-add">Add block</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Log a Study Session</h2>
+      <div class="add-row">
+        <input type="date" class="text-input" id="sessionDateInput" style="flex:0 0 auto;width:auto" min="${RANGE_MIN}" max="${RANGE_MAX}" value="${realToday}">
+        <input type="number" class="text-input" id="sessionMinInput" placeholder="Minutes" min="1" inputmode="numeric" style="flex:0 0 auto;width:110px">
+        <select class="select-input" id="sessionClassInput" style="flex:1;min-width:140px"><option value="">General study</option>${classOptions('')}</select>
+        <input type="text" class="text-input" id="sessionNoteInput" placeholder="Note (optional)" autocomplete="off">
+        <button class="btn gold" data-action="session-add">Log it</button>
+      </div>
+      <div style="margin-top:16px">
+        ${sessions.length ? sessions.map(s => `
+          <div class="todo-row">
+            <div class="todo-text"><strong>${Number(s.minutes) || 0} min</strong> · ${fmtShort(s.date)}
+              <div class="meta">${classById(s.classId) ? esc(classById(s.classId).name) : 'General study'}${s.note ? ' — ' + esc(s.note) : ''}</div>
+            </div>
+            <button class="icon-btn" data-action="session-del" data-sid="${s.id}" aria-label="Delete session">×</button>
+          </div>`).join('')
+        : '<p class="empty-note">No sessions logged yet. Ten honest minutes is a great first entry.</p>'}
+      </div>
+      ${perClassRows ? `<h3 style="margin-top:16px">Minutes by class</h3>${perClassRows}` : ''}
+    </div>
+
+    <div class="card">
+      <h2>Study Notes</h2>
+      <p class="hint">A free-text corner for anything study-related — ideas, questions for the teacher, things to look up later.</p>
+      <textarea class="text-area" style="min-height:120px" placeholder="Dump it here…" data-bind="study-notes">${esc(state.studyNotes)}</textarea>
+    </div>`;
+}
+
+/* ---------------- View: Exams ---------------- */
+function renderExams(){
+  const el = document.getElementById('view-exams');
+  const list = state.exams.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  el.innerHTML = `
+    <div class="view-head">
+      <h1>Exams</h1>
+      <p class="sub">The countdowns, in one calm list. Nearest first — no surprises.</p>
+    </div>
+    <div class="card">
+      ${list.length ? list.map(e => {
+        const diff = daysBetween(realToday, e.date);
+        const when = diff < 0 ? 'Already happened — well done for getting through it' : diff === 0 ? 'Today — you have got this' : diff === 1 ? 'Tomorrow' : 'In ' + diff + ' days';
+        return `
+        <div class="todo-row">
+          <div class="todo-text"><strong>${esc(e.title)}</strong> <span class="tag">${when}</span>
+            <div class="meta">${fmtLong(e.date)}</div>
+            <div style="margin-top:4px">${classChip(classById(e.classId))}</div>
+          </div>
+          <button class="icon-btn" data-action="exam-del" data-eid="${e.id}" aria-label="Delete exam">×</button>
+        </div>`;
+      }).join('')
+      : '<p class="empty-note">No exams added yet. Add the next one below and the countdown takes care of itself.</p>'}
+      <div class="add-row">
+        <input type="text" class="text-input" id="examTitleInput" placeholder="Exam title, e.g. Biology midterm" autocomplete="off">
+        <select class="select-input" id="examClassInput" style="flex:1;min-width:140px">${classOptions(state.classes[0] ? state.classes[0].id : '')}</select>
+        <input type="date" class="text-input" id="examDateInput" style="flex:0 0 auto;width:auto" min="${RANGE_MIN}" max="${RANGE_MAX}" value="${realToday}">
+        <button class="btn gold" data-action="exam-add">Add exam</button>
+      </div>
+    </div>`;
+}
+
+/* ---------------- View: Grades ---------------- */
+function renderGrades(){
+  const el = document.getElementById('view-grades');
+  const avgs = state.classes.map(c => ({ c: c, avg: classAverage(c.id) })).filter(x => x.avg != null);
+  const overall = avgs.length ? avgs.reduce((s, x) => s + x.avg, 0) / avgs.length : null;
+  const cards = state.classes.map(c => {
+    const entries = state.grades.filter(g => g.classId === c.id);
+    const avg = classAverage(c.id);
+    return `
+    <div class="card">
+      <h2><span class="class-dot" style="background:${esc(c.color)}"></span> ${esc(c.name)}</h2>
+      <p class="hint">${avg != null ? 'Average: <strong>' + avg.toFixed(1) + '%</strong>' : 'No grades yet for this class.'}</p>
+      ${avg != null ? `<div class="bar"><i style="width:${Math.max(0, Math.min(100, avg))}%"></i></div>` : ''}
+      <div style="margin-top:12px">
+        ${entries.length ? entries.map(g => {
+          const pct = gradePct(g);
+          return `
+          <div class="todo-row">
+            <div class="todo-text"><strong>${esc(g.title)}</strong>
+              <div class="meta">${esc(String(g.score))} / ${esc(String(g.total))}${pct != null ? ' · ' + pct.toFixed(1) + '%' : ''}${g.weight !== '' && g.weight != null ? ' · weight ' + esc(String(g.weight)) : ''}</div>
+            </div>
+            <button class="icon-btn" data-action="grade-del" data-gid="${g.id}" aria-label="Delete grade">×</button>
+          </div>`;
+        }).join('') : '<p class="empty-note">No grades logged for this class yet.</p>'}
+      </div>
+      <div class="add-row">
+        <input type="text" class="text-input" id="gradeTitle-${c.id}" placeholder="What was it? e.g. Quiz 3" autocomplete="off">
+        <input type="number" class="text-input" id="gradeScore-${c.id}" placeholder="Score" inputmode="decimal" style="flex:0 0 auto;width:100px">
+        <input type="number" class="text-input" id="gradeTotal-${c.id}" placeholder="Out of" inputmode="decimal" style="flex:0 0 auto;width:100px">
+        <input type="number" class="text-input" id="gradeWeight-${c.id}" placeholder="Weight (optional)" inputmode="decimal" style="flex:0 0 auto;width:130px">
+        <button class="btn small" data-action="grade-add" data-cid="${c.id}">Add grade</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="view-head">
+      <h1>Grades</h1>
+      <p class="sub">Scores in, averages out. Averages are plain maths, not judgements — a low grade is information, not a verdict.</p>
+    </div>
+    ${overall != null ? `
+    <div class="stat-grid section-gap">
+      <div class="stat-card"><div class="stat-num">${overall.toFixed(1)}%</div><div class="stat-label">Overall average (mean of class averages)</div></div>
+      <div class="stat-card"><div class="stat-num">${state.grades.length}</div><div class="stat-label">Grades logged</div></div>
+      <div class="stat-card"><div class="stat-num">${avgs.length}</div><div class="stat-label">Classes with grades</div></div>
+    </div>` : ''}
+    ${cards || '<p class="empty-note">Add a class first, then grades will have somewhere to live.</p>'}`;
+}
+
+/* ---------------- View: Semester ---------------- */
+function weekStartOf(iso){
+  const d = parseISO(iso);
+  const back = (typeof prefs !== 'undefined' && prefs.weekStart === 'mon') ? (d.getDay() + 6) % 7 : d.getDay();
+  return isoOf(addDays(d, -back));
+}
+function renderSemester(){
+  const el = document.getElementById('view-semester');
+  const doneCount = state.assignments.filter(a => a.status === 'done').length;
+  const openCount = state.assignments.filter(a => a.status !== 'done').length;
+  const upcomingExams = state.exams.filter(e => e.date >= realToday).length;
+  const totalMinutes = state.sessions.reduce((t, s) => t + (Number(s.minutes) || 0), 0);
+  const weekStart = weekStartOf(realToday);
+  const weekEnd = isoOf(addDays(parseISO(weekStart), 6));
+  const weekDue = sortedAssignments(state.assignments.filter(a => a.status !== 'done' && a.due >= weekStart && a.due <= weekEnd));
+  const [sy, sm] = semCursor.split('-').map(Number);
+  const monthAsg = state.assignments.filter(a => a.due.slice(0, 7) === semCursor).length;
+  const monthExams = state.exams.filter(e => e.date.slice(0, 7) === semCursor).length;
+  const monthMinutes = state.sessions.filter(s => s.date.slice(0, 7) === semCursor).reduce((t, s) => t + (Number(s.minutes) || 0), 0);
+  const gradeRows = state.classes.map(c => {
+    const avg = classAverage(c.id);
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0"><span><span class="class-dot" style="background:${esc(c.color)}"></span> ${esc(c.name)}</span><strong>${avg != null ? avg.toFixed(1) + '%' : '—'}</strong></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="view-head">
+      <h1>Semester</h1>
+      <p class="sub">The whole picture, from only what you actually logged. Nothing here is a target you missed — it's a record of what happened.</p>
+    </div>
+
+    <div class="stat-grid section-gap">
+      <div class="stat-card"><div class="stat-num">${doneCount} / ${doneCount + openCount}</div><div class="stat-label">Assignments done</div></div>
+      <div class="stat-card"><div class="stat-num">${upcomingExams}</div><div class="stat-label">Exams upcoming</div></div>
+      <div class="stat-card"><div class="stat-num">${totalMinutes}</div><div class="stat-label">Study minutes logged</div></div>
+    </div>
+
+    <div class="grid-2 section-gap">
+      <div class="card">
+        <h2>Due This Week</h2>
+        <p class="hint">${fmtShort(weekStart)} — ${fmtShort(weekEnd)} (week starts ${prefs.weekStart === 'mon' ? 'Monday' : 'Sunday'}; change it in Settings).</p>
+        ${weekDue.length ? weekDue.map(assignmentRow).join('') : '<p class="empty-note">Nothing due this week.</p>'}
+      </div>
+      <div class="card">
+        <h2>Grades Snapshot</h2>
+        <p class="hint">Per-class averages, from logged grades only.</p>
+        ${gradeRows || '<p class="empty-note">No classes yet.</p>'}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Your demo month</h2>
+      <p class="hint">The full version rolls through every month of 2026–2027 — the demo shows your demo month only.</p>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-num">${monthAsg}</div><div class="stat-label">Assignments due in ${MONTH_NAMES[sm - 1]} ${sy}</div></div>
+        <div class="stat-card"><div class="stat-num">${monthExams}</div><div class="stat-label">Exams in ${MONTH_NAMES[sm - 1]} ${sy}</div></div>
+        <div class="stat-card"><div class="stat-num">${monthMinutes}</div><div class="stat-label">Study minutes in ${MONTH_NAMES[sm - 1]} ${sy}</div></div>
+      </div>
+    </div>`;
+}
+
+/* ---------------- Navigation & rendering ---------------- */
+const RENDERERS = {
+  today: renderToday,
+  assignments: renderAssignments,
+  classes: renderClasses,
+  study: renderStudy,
+  exams: renderExams,
+  grades: renderGrades,
+  semester: renderSemester,
+  settings: function(){ /* static markup */ }
+};
+function renderCurrent(){
+  const fn = RENDERERS[currentView];
+  if (fn) fn();
+}
+function showView(name){
+  currentView = name;
+  document.querySelectorAll('.view').forEach(v => { v.classList.remove('active'); v.classList.remove('entering'); });
+  const sec = document.getElementById('view-' + name);
+  if (sec) {
+    sec.classList.add('active');
+    sec.classList.add('entering');   // one-shot card entrance; removed so in-view re-renders stay still
+    setTimeout(() => sec.classList.remove('entering'), 520);
+  }
+  document.querySelectorAll('#mainNav .tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === name));
+  renderCurrent();
+  window.scrollTo({ top: 0 });
+}
+function rerender(){ renderCurrent(); }   // after a mutation inside the current view
+
+/* ---------------- Text input bindings (no re-render: keeps focus) ---------------- */
+document.addEventListener('input', function(e){
+  const el = e.target;
+  const bind = el.dataset ? el.dataset.bind : null;
+  if (el.dataset && el.dataset.pref === 'name') {
+    prefs.name = el.value;
+    savePrefs();
+    const owner = document.getElementById('brandOwner');
+    if (owner) {
+      const nm = el.value.trim();
+      owner.textContent = nm ? nm + '’s Student Planner' : '';
+      owner.style.display = nm ? '' : 'none';
+    }
+    return;
+  }
+  if (bind) {
+    switch (bind) {
+      case 'focus-task': state.focusTask.text = el.value; break;
+      case 'study-notes': state.studyNotes = el.value; break;
+      case 'asg-title': {
+        const a = state.assignments.find(x => x.id === el.dataset.aid);
+        if (a) a.title = el.value;
+        break;
+      }
+      case 'class-name': {
+        const c = classById(el.dataset.cid);
+        if (c) c.name = el.value;
+        break;
+      }
+      case 'class-time': {
+        const c = classById(el.dataset.cid);
+        if (c) c.time = el.value;
+        break;
+      }
+      case 'class-room': {
+        const c = classById(el.dataset.cid);
+        if (c) c.room = el.value;
+        break;
+      }
+      case 'class-teacher': {
+        const c = classById(el.dataset.cid);
+        if (c) c.teacher = el.value;
+        break;
+      }
+    }
+    save();
+    return;
+  }
+});
+
+/* Enter key submits the single-line "add" inputs */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+  const t = e.target;
+  if (t.id === 'classNameInput') {
+    e.preventDefault();
+    addClass();
+  } else if (t.id === 'examTitleInput') {
+    e.preventDefault();
+    addExam();
+  } else if (t.id === 'blockTitleInput') {
+    e.preventDefault();
+    addBlock();
+  }
+});
+
+/* ---------------- Change events (date pickers, selects) ---------------- */
+document.addEventListener('change', function(e){
+  const el = e.target;
+  if (el.id === 'prefHome') {
+    if (PREF_VIEWS.includes(el.value)) { prefs.home = el.value; savePrefs(); }
+  } else if (el.dataset && el.dataset.asgdue) {
+    const a = state.assignments.find(x => x.id === el.dataset.asgdue);
+    if (a && el.value) { a.due = clampISO(el.value); save(); rerender(); }
+  }
+});
+
+/* ---------------- Mutations ---------------- */
+function collectAssignment(formId, withNote){
+  const titleEl = document.getElementById(formId + '-title');
+  const classEl = document.getElementById(formId + '-class');
+  const dueEl = document.getElementById(formId + '-due');
+  const priEl = document.getElementById(formId + '-priority');
+  const title = (titleEl && titleEl.value || '').trim();
+  if (!title) return null;
+  const noteEl = withNote ? document.getElementById('asg-note') : null;
+  return {
+    id: uid(),
+    title: title,
+    classId: classEl ? classEl.value : '',
+    due: clampISO(dueEl && dueEl.value ? dueEl.value : realToday),
+    status: 'todo',
+    priority: priEl ? priEl.value : 'normal',
+    note: noteEl ? noteEl.value.trim() : ''
+  };
+}
+function addAssignmentFromForm(formId, withNote){
+  const a = collectAssignment(formId, withNote);
+  if (!a) return;
+  state.assignments.push(a);
+  const titleEl = document.getElementById(formId + '-title');
+  if (titleEl) titleEl.value = '';
+  const noteEl = withNote ? document.getElementById('asg-note') : null;
+  if (noteEl) noteEl.value = '';
+  save(); rerender();
+}
+function addClass(){
+  const nameEl = document.getElementById('classNameInput');
+  const timeEl = document.getElementById('classTimeInput');
+  const name = (nameEl && nameEl.value || '').trim();
+  if (!name) return;
+  const used = state.classes.map(c => c.color);
+  const color = CLASS_COLORS.find(c => !used.includes(c)) || CLASS_COLORS[state.classes.length % CLASS_COLORS.length];
+  state.classes.push({ id: uid(), name: name, color: color, days: [], time: timeEl ? timeEl.value.trim() : '', room: '', teacher: '' });
+  if (nameEl) nameEl.value = '';
+  if (timeEl) timeEl.value = '';
+  save(); rerender();
+}
+function addBlock(){
+  const titleEl = document.getElementById('blockTitleInput');
+  const classEl = document.getElementById('blockClassInput');
+  const dayEl = document.getElementById('blockDayInput');
+  const timeEl = document.getElementById('blockTimeInput');
+  const title = (titleEl && titleEl.value || '').trim();
+  if (!title) return;
+  state.blocks.push({ id: uid(), title: title, classId: classEl ? classEl.value : '', day: dayEl ? Number(dayEl.value) : 1, time: timeEl ? timeEl.value.trim() : '' });
+  if (titleEl) titleEl.value = '';
+  if (timeEl) timeEl.value = '';
+  save(); rerender();
+}
+function addSession(){
+  const dateEl = document.getElementById('sessionDateInput');
+  const minEl = document.getElementById('sessionMinInput');
+  const classEl = document.getElementById('sessionClassInput');
+  const noteEl = document.getElementById('sessionNoteInput');
+  const minutes = minEl ? Number(minEl.value) : 0;
+  if (!minutes || minutes <= 0) return;
+  state.sessions.push({ id: uid(), date: clampISO(dateEl && dateEl.value ? dateEl.value : realToday), minutes: Math.round(minutes), classId: classEl ? classEl.value : '', note: noteEl ? noteEl.value.trim() : '' });
+  if (minEl) minEl.value = '';
+  if (noteEl) noteEl.value = '';
+  save(); rerender();
+}
+function addExam(){
+  const titleEl = document.getElementById('examTitleInput');
+  const classEl = document.getElementById('examClassInput');
+  const dateEl = document.getElementById('examDateInput');
+  const title = (titleEl && titleEl.value || '').trim();
+  if (!title) return;
+  state.exams.push({ id: uid(), title: title, classId: classEl ? classEl.value : '', date: clampISO(dateEl && dateEl.value ? dateEl.value : realToday) });
+  if (titleEl) titleEl.value = '';
+  save(); rerender();
+}
+function addGrade(classId){
+  const titleEl = document.getElementById('gradeTitle-' + classId);
+  const scoreEl = document.getElementById('gradeScore-' + classId);
+  const totalEl = document.getElementById('gradeTotal-' + classId);
+  const weightEl = document.getElementById('gradeWeight-' + classId);
+  const title = (titleEl && titleEl.value || '').trim();
+  const score = scoreEl ? Number(scoreEl.value) : NaN;
+  const total = totalEl ? Number(totalEl.value) : NaN;
+  if (!title || isNaN(score) || isNaN(total) || total <= 0) return;
+  state.grades.push({ id: uid(), classId: classId, title: title, score: score, total: total, weight: weightEl && weightEl.value !== '' ? Number(weightEl.value) : '' });
+  if (titleEl) titleEl.value = '';
+  if (scoreEl) scoreEl.value = '';
+  if (totalEl) totalEl.value = '';
+  if (weightEl) weightEl.value = '';
+  save(); rerender();
+}
+
+/* ---------------- Click actions ---------------- */
+document.addEventListener('click', function(e){
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const action = el.dataset.action;
+
+  switch (action) {
+    case 'nav':
+      showView(el.dataset.view);
+      break;
+
+    case 'focus-toggle':
+      state.focusTask.done = !state.focusTask.done;
+      save(); rerender();
+      if (state.focusTask.done) {
+        const card = document.querySelector('.view.active .focus-card');
+        if (card) { card.classList.add('glow'); setTimeout(() => card.classList.remove('glow'), 1150); }
+      }
+      break;
+
+    /* Assignments */
+    case 'asg-filter':
+      asgFilter = el.dataset.filter;
+      renderAssignments();
+      break;
+    case 'asg-status': {
+      const a = state.assignments.find(x => x.id === el.dataset.aid);
+      if (a) { a.status = STATUS_NEXT[a.status] || 'todo'; save(); rerender(); }
+      break;
+    }
+    case 'asg-del':
+      state.assignments = state.assignments.filter(x => x.id !== el.dataset.aid);
+      save(); rerender();
+      break;
+    case 'asg-add': {
+      const formId = el.dataset.form;
+      addAssignmentFromForm(formId, formId === 'asg');
+      break;
+    }
+
+    /* Classes */
+    case 'class-add':
+      addClass();
+      break;
+    case 'class-del': {
+      const cid = el.dataset.cid;
+      if (state.classes.length <= 1 && state.classes[0] && state.classes[0].id === cid) break;
+      state.classes = state.classes.filter(c => c.id !== cid);
+      state.assignments.forEach(a => { if (a.classId === cid) a.classId = ''; });
+      state.blocks.forEach(b => { if (b.classId === cid) b.classId = ''; });
+      state.sessions.forEach(s => { if (s.classId === cid) s.classId = ''; });
+      state.exams.forEach(x => { if (x.classId === cid) x.classId = ''; });
+      state.grades = state.grades.filter(g => g.classId !== cid);
+      save(); rerender();
+      break;
+    }
+    case 'class-day': {
+      const c = classById(el.dataset.cid);
+      if (!c) break;
+      const day = Number(el.dataset.day);
+      if (!Array.isArray(c.days)) c.days = [];
+      const i = c.days.indexOf(day);
+      if (i >= 0) c.days.splice(i, 1); else c.days.push(day);
+      save(); rerender();
+      break;
+    }
+    case 'class-color': {
+      const c = classById(el.dataset.cid);
+      if (c) { c.color = el.dataset.color; save(); rerender(); }
+      break;
+    }
+
+    /* Study */
+    case 'block-add':
+      addBlock();
+      break;
+    case 'block-del':
+      state.blocks = state.blocks.filter(b => b.id !== el.dataset.bid);
+      save(); rerender();
+      break;
+    case 'session-add':
+      addSession();
+      break;
+    case 'session-del':
+      state.sessions = state.sessions.filter(s => s.id !== el.dataset.sid);
+      save(); rerender();
+      break;
+
+    /* Exams */
+    case 'exam-add':
+      addExam();
+      break;
+    case 'exam-del':
+      state.exams = state.exams.filter(x => x.id !== el.dataset.eid);
+      save(); rerender();
+      break;
+
+    /* Grades */
+    case 'grade-add':
+      addGrade(el.dataset.cid);
+      break;
+    case 'grade-del':
+      state.grades = state.grades.filter(g => g.id !== el.dataset.gid);
+      save(); rerender();
+      break;
+
+    /* Preferences (separate prefs key; study data untouched) */
+    case 'pref-theme':
+      if (PREF_THEMES.includes(el.dataset.theme)) { prefs.theme = el.dataset.theme; savePrefs(); applyPrefs(); }
+      break;
+    case 'pref-appearance':
+      prefs.appearance = (el.dataset.val === 'dark') ? 'dark' : 'light';
+      savePrefs(); applyPrefs();
+      break;
+    case 'pref-weekstart':
+      prefs.weekStart = (el.dataset.val === 'mon') ? 'mon' : 'sun';
+      savePrefs(); applyPrefs(); rerender();
+      break;
+
+    /* Add to Home Screen */
+    case 'install-app':
+      openInstall();
+      break;
+    case 'install-close':
+      closeInstallSheet();
+      break;
+
+    /* Settings */
+    case 'clear-all':
+      if (window.confirm('Clear ALL study planner data from this browser? Classes, assignments, study sessions, exams and grades will be permanently removed.')) {
+        try { localStorage.removeItem(STORE_KEY); } catch (err) {}
+        state = seedState();
+        asgFilter = 'all';
+        save();
+        showView('today');
+      }
+      break;
+  }
+});
+
+/* ---------------- Preferences (separate localStorage key; the data key/model are untouched) ---------------- */
+const PREFS_KEY = 'fedorian_adhd_student_prefs_v1';
+const PREF_THEMES = ['teal', 'midnight', 'forest', 'plum', 'ember'];
+const PREF_VIEWS = ['today', 'assignments', 'classes', 'study', 'exams', 'grades', 'semester', 'settings'];
+function loadPrefs(){
+  const dflt = { name: '', theme: 'teal', appearance: 'light', weekStart: 'sun', home: 'today' };
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) {
+      const p = Object.assign({}, dflt, JSON.parse(raw));
+      if (!PREF_THEMES.includes(p.theme)) p.theme = 'teal';
+      if (p.appearance !== 'dark' && p.appearance !== 'light') p.appearance = 'light';
+      if (p.weekStart !== 'mon' && p.weekStart !== 'sun') p.weekStart = 'sun';
+      if (!PREF_VIEWS.includes(p.home)) p.home = 'today';
+      p.name = (typeof p.name === 'string') ? p.name : '';
+      return p;
+    }
+  } catch (e) { /* corrupted prefs fall through to defaults */ }
+  return dflt;
+}
+let prefs = loadPrefs();
+function savePrefs(){
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* storage blocked: prefs just won't persist */ }
+}
+function dayPart(){
+  const h = new Date().getHours();
+  return h < 12 ? 'morning' : (h < 18 ? 'afternoon' : 'evening');
+}
+function applyPrefs(){
+  const de = document.documentElement;
+  de.dataset.theme = prefs.theme;
+  de.dataset.appearance = prefs.appearance;
+  const owner = document.getElementById('brandOwner');
+  if (owner) {
+    const nm = (prefs.name || '').trim();
+    owner.textContent = nm ? nm + '’s Student Planner' : '';
+    owner.style.display = nm ? '' : 'none';
+  }
+  document.querySelectorAll('[data-action="pref-theme"]').forEach(b => b.classList.toggle('on', b.dataset.theme === prefs.theme));
+  document.querySelectorAll('[data-action="pref-appearance"]').forEach(b => b.classList.toggle('on', b.dataset.val === prefs.appearance));
+  document.querySelectorAll('[data-action="pref-weekstart"]').forEach(b => b.classList.toggle('on', b.dataset.val === prefs.weekStart));
+  const nameInput = document.getElementById('prefName');
+  if (nameInput && nameInput.value !== prefs.name) nameInput.value = prefs.name || '';
+  const homeSel = document.getElementById('prefHome');
+  if (homeSel) homeSel.value = prefs.home;
+}
+
+/* ---------------- Add to Home Screen ----------------
+   Hosted copies (the demo) can fire Chrome's real install prompt, captured
+   in the head script. Everywhere else — and on iOS, which never offers a
+   programmatic prompt — the button opens a short guided sheet instead. */
+function isStandalone(){
+  try { if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true; } catch (e) {}
+  return window.navigator.standalone === true;   /* iOS Safari's home-screen flag */
+}
+function refreshInstallCard(){
+  const cta = document.getElementById('installCta');
+  const done = document.getElementById('installDone');
+  if (!cta || !done) return;
+  const solo = isStandalone();
+  cta.style.display = solo ? 'none' : '';
+  done.style.display = solo ? '' : 'none';
+}
+function installStepLines(){
+  const ua = window.navigator.userAgent || '';
+  const iPadOS = /Macintosh/.test(ua) && window.navigator.maxTouchPoints > 1;   /* iPads report themselves as Macs */
+  if (/iPhone|iPad|iPod/.test(ua) || iPadOS) return [
+    'Tap the Share button in Safari’s toolbar.',
+    'Scroll down and tap “Add to Home Screen”.',
+    'Tap Add — the planner now lives on your home screen.'
+  ];
+  if (/Android/.test(ua) || /Mobi/.test(ua)) return [
+    'Tap the ⋮ menu in your browser.',
+    'Tap “Add to Home screen” (or “Install app”).',
+    'Confirm — the planner now lives on your home screen.'
+  ];
+  return [
+    'Bookmark this page (Ctrl/Cmd + D), or pin the file somewhere handy — on a computer the planner is happiest in a browser tab.'
+  ];
+}
+function showInstallSheet(){
+  const list = document.getElementById('installSteps');
+  if (list) {
+    list.innerHTML = '';
+    installStepLines().forEach(function(t){
+      const li = document.createElement('li');
+      li.textContent = t;
+      list.appendChild(li);
+    });
+  }
+  const sheet = document.getElementById('installSheet');
+  if (sheet) sheet.classList.add('open');
+}
+function closeInstallSheet(){
+  const sheet = document.getElementById('installSheet');
+  if (sheet) sheet.classList.remove('open');
+}
+function openInstall(){
+  const evt = window.__fedorianInstallPrompt;
+  if (evt) {
+    window.__fedorianInstallPrompt = null;   /* a captured prompt can only be spent once */
+    try {
+      const pr = evt.prompt();
+      if (pr && typeof pr.catch === 'function') pr.catch(function(){});   /* outcome handled quietly */
+      if (evt.userChoice && typeof evt.userChoice.catch === 'function') evt.userChoice.catch(function(){});
+      return;
+    } catch (e) { /* prompt refused — fall through to the guided steps */ }
+  }
+  showInstallSheet();
+}
+const installSheetEl = document.getElementById('installSheet');
+if (installSheetEl) installSheetEl.addEventListener('click', function(e){ if (e.target === installSheetEl) closeInstallSheet(); });
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeInstallSheet(); });
+window.addEventListener('appinstalled', refreshInstallCard);
+
+/* ---------------- Init ---------------- */
+applyPrefs();
+refreshInstallCard();
+showView(prefs.home);
+</script>
+<script>
+/* PWA install support (demo host only): registering the pass-through service worker is what makes the demo installable in Chrome. Guarded so it can never throw on file:// or in browsers without service workers. */
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) { try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch (e) {} }
+</script>
+</body>
+</html>
