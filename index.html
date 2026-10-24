@@ -401,7 +401,7 @@ html[data-appearance="dark"] .icon-btn:hover{background:var(--card)}
 
 /* ---------- Product #3 dashboard & split layouts (new shell — not the #1/#2 single column) ---------- */
 /* Today dashboard: stats strip full width, then two columns of sections on desktop. */
-#view-today{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+#view-today.active{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 #view-today>.view-head{grid-column:1/-1}
 #view-today>.stat-grid{grid-column:1/-1}
 #view-today>.card,#view-today>.grid-2{margin-bottom:0}
@@ -413,7 +413,7 @@ html[data-appearance="dark"] .icon-btn:hover{background:var(--card)}
 /* Assignments / Classes: list in the wide column, add-form as a sticky side panel.
    The add card is always the last card, so :last-child holds whether or not the
    conditional "Pick It Back Up" card is present. */
-#view-assignments,#view-classes{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:16px;align-items:start}
+#view-assignments.active,#view-classes.active{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:16px;align-items:start}
 #view-assignments>.view-head,#view-classes>.view-head{grid-column:1/-1}
 #view-assignments>.card,#view-classes>.card{margin-bottom:0}
 #view-assignments>.card:last-child{grid-column:2;grid-row:2/span 2;position:sticky;top:132px}
@@ -426,7 +426,7 @@ html[data-appearance="dark"] .icon-btn:hover{background:var(--card)}
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width:900px){ .grid-2{grid-template-columns:1fr} .stat-grid{grid-template-columns:1fr 1fr} #view-today{display:block} #view-today>.card{margin-bottom:16px} #view-today>.grid-2{margin-bottom:16px} #view-assignments,#view-classes{display:block} #view-assignments>.card,#view-classes>.card{margin-bottom:16px;position:static} }
+@media (max-width:900px){ .grid-2{grid-template-columns:1fr} .stat-grid{grid-template-columns:1fr 1fr} #view-today.active{display:block} #view-today>.card{margin-bottom:16px} #view-today>.grid-2{margin-bottom:16px} #view-assignments.active,#view-classes.active{display:block} #view-assignments>.card,#view-classes>.card{margin-bottom:16px;position:static} }
 @media (max-width:860px){
   .topbar-inner{padding:12px 14px 10px}
   .topbar .brand-tag{display:none}
